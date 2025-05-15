@@ -1,0 +1,38 @@
+[
+  {
+    "namespace": "experiments.webcompatDebugger",
+    "functions": [
+      {
+        "name": "getContentBlockingLog",
+        "type": "function",
+        "description": "Returns the content blocking log for the current tab.",
+        "async": true,
+        "parameters": [
+          {
+            "name": "tabId",
+            "type": "integer"
+          }
+        ]
+      },
+      {
+        "name": "updateTrackingSkipURLs",
+        "type": "function",
+        "description": "Adds a URL to the tracking skip URLs list.",
+        "async": true,
+        "parameters": [
+          {
+            "name": "hostnames",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "blocked",
+            "type": "boolean"
+          }
+        ]
+      }
+    ]
+  }
+]

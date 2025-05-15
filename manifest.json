@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "name": "webcompat-helper",
+  "version": "1.0",
+
+  "description": "Allows cookies to be easily blocked and unblocked",
+
+  "icons": {
+    "48": "icons/border-48.png"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "leliu@mozilla.com"
+    }
+  },
+  "permissions": [
+    "cookies",
+    "mozillaAddons",
+    "scripting",
+    "tabs",
+    "webNavigation",
+    "webRequest",
+    "webRequestBlocking"
+  ],
+  "devtools_page": "content/devtools.html",
+  "background": {
+    "scripts": ["background/background.js"],
+    "type": "module"
+  },
+  "experiment_apis": {
+    "webcompatDebugger": {
+      "schema": "experiments/schema.json",
+      "parent": {
+        "scopes": ["addon_parent"],
+        "paths": [["experiments"]],
+        "script": "experiments/api.js"
+      }
+    }
+  }
+}
