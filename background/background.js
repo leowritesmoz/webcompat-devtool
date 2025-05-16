@@ -6,47 +6,52 @@
 
 async function handleMessage(request) {
   switch (request.msg) {
-    case "fetch-trackers": {
-      const { tabId } = request;
-      if (!tabId) {
-        console.error("No tabId provided");
-        return;
-      }
-
-      const contentBlockingLog =
-        await browser.experiments.webcompatDebugger.getContentBlockingLog(
-          tabId
-        );
-
+    case "fetch-initial-trackers": {
+      console.log(request.tabId)
+     const trackers = await browser.experiments.webcompatDebugger.getContentBlockingLog(request.tabId); 
+     const regexTrackers = Object.keys(JSON.parse(trackers)).map(tracker => {
+        const { hostname } = new URL(tracker);
+        return `*://${hostname}/*`;
+      })
+     browser.runtime.sendMessage({
+        msg: "initial-trackers",
+        trackers: regexTrackers
+      });
+    }
+    case "get-unblocked-trackers": {
+      // Fetch and send the list of unblocked trackers
+      const unblockedTrackers = await browser.experiments.webcompatDebugger.getUnblockedTrackers();
       browser.runtime.sendMessage({
-        msg: "tracker-fetched",
-        contentBlockingLog,
+        msg: "unblocked-trackers",
+        unblockedTrackers,
       });
       return;
     }
     case "toggle-tracker": {
-      const { url, blocked, tabId } = request;
-      if (!url) {
-        console.error("No URL provided");
-        return;
-      }
+      // Toggle the blocked status of a single tracker
+      const { tracker, blocked, tabId } = request;
 
-      const hostname = new URL(url).hostname;
       await browser.experiments.webcompatDebugger.updateTrackingSkipURLs(
-        [hostname],
+        [tracker],
         blocked
       );
+      const unblockedTrackers = await browser.experiments.webcompatDebugger.getUnblockedTrackers();
+      browser.runtime.sendMessage({
+        msg: "unblocked-trackers",
+        unblockedTrackers,
+      });
+
       browser.tabs.reload(tabId, { bypassCache: true });
       return;
     }
     case "update-all-trackers": {
-      const { blocked, blocklist, tabId } = request;
-      const hostnames = blocklist.map(url => new URL(url).hostname);
+      const { allTrackers, blocked, tabId } = request;
 
       await browser.experiments.webcompatDebugger.updateTrackingSkipURLs(
-        hostnames,
+        Array.from(allTrackers),
         blocked
       );
+
       browser.tabs.reload(tabId, { bypassCache: true });
       return;
     }
@@ -55,4 +60,15 @@ async function handleMessage(request) {
   }
 }
 
-browser.runtime.onMessage.addListener(handleMessage);
+browser.runtime.onMessage.addListener(handleMessage); 
+
+// Listen for blocked requests and send them to the content script
+browser.experiments.webcompatDebugger.stopRequestObserver.addListener(({ url }) => {
+  const { hostname } = new URL(url);
+    const tracker = `*://${hostname}/*`;
+    browser.runtime.sendMessage({
+      msg: "blocked-request",
+      tracker
+    });
+})
+

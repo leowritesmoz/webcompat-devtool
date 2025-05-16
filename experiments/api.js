@@ -19,6 +19,16 @@ this.webcompatDebugger = class extends ExtensionAPI {
     return {
       experiments: {
         webcompatDebugger: {
+          async getUnblockedTrackers() {
+            const unblockedTrackers = new Set();
+            TRACKING_PREF_SKIP_LISTS.forEach(prefName => {
+              const prefValue = Services.prefs.getStringPref(prefName, "");
+              prefValue.split(",").forEach(hostname => {
+                unblockedTrackers.add(hostname.trim());
+              });
+            });
+            return Array.from(unblockedTrackers);
+          },
           async getContentBlockingLog(tabId) {
             const tab = tabManager.get(tabId);
             if (!tab) {
@@ -29,20 +39,18 @@ this.webcompatDebugger = class extends ExtensionAPI {
           async updateTrackingSkipURLs(hostnames, blocked) {
             const updatePref = prefName => {
               const oldPrefs = Services.prefs.getStringPref(prefName, "");
-              const oldPrefsSet = new Set(
-                oldPrefs
-                  .split(",")
-                  .map(s => s.trim())
-                  .filter(s => s)
-              );
+              const a = oldPrefs
+                .split(",")
+                .map(s => s.trim())
+              const oldPrefsSet = new Set(a);
               hostnames.forEach(hostname => {
-                const regexUrl = `*://${hostname}/*`;
                 if (blocked) {
-                  oldPrefsSet.delete(regexUrl);
+                  oldPrefsSet.delete(hostname);
                 } else {
-                  oldPrefsSet.add(regexUrl);
+                  oldPrefsSet.add(hostname);
                 }
               });
+              console.log(oldPrefsSet);
               Services.prefs.setStringPref(
                 prefName,
                 Array.from(oldPrefsSet).join(",")
@@ -53,6 +61,26 @@ this.webcompatDebugger = class extends ExtensionAPI {
               updatePref(prefName);
             });
           },
+          stopRequestObserver: new ExtensionCommon.EventManager({
+            context,
+            name: "webcompatDebugger.stopRequestObserver",
+            register: fire => {
+              const channelClassifier = Cc[
+                "@mozilla.org/url-classifier/channel-classifier-service;1"
+              ].getService(Ci.nsIChannelClassifierService);
+              const observer = {
+                observe: (subject) => {
+                  fire.sync({
+                    url: subject.url
+                  });
+                },
+              };
+              channelClassifier.addListener(observer);
+              return () => {
+                channelClassifier.removeListener(observer);
+              };
+            },
+          }).api()
         },
       },
     };

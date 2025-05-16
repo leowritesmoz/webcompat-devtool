@@ -8,7 +8,12 @@
  *
  */
 class WebcompatDebugger {
-  blocklist = [];
+  allTrackers = new Set(); 
+  unblocked = new Set();
+  // when a page refreshes, need to clear the allTrackers
+  // need to maintain two lists: one for the entire block list, another for the trackers 
+  // that are allowed to be unblocked for now
+  // when the pages 
   constructor() {
     document.addEventListener(
       "DOMContentLoaded",
@@ -21,7 +26,8 @@ class WebcompatDebugger {
 
   init() {
     this.setupListeners();
-    this.sendMessage("fetch-trackers", {
+    this.sendMessage("get-unblocked-trackers");
+    this.sendMessage("fetch-initial-trackers", {
       tabId: browser.devtools.inspectedWindow.tabId,
     });
   }
@@ -31,7 +37,7 @@ class WebcompatDebugger {
     document.getElementById("block-all").addEventListener("click", () => {
       this.sendMessage("update-all-trackers", {
         blocked: true,
-        blocklist: this.blocklist,
+        allTrackers: this.allTrackers,
       });
       document.querySelectorAll(".tracker-checkbox").forEach(checkbox => {
         checkbox.checked = true;
@@ -40,7 +46,7 @@ class WebcompatDebugger {
     document.getElementById("unblock-all").addEventListener("click", () => {
       this.sendMessage("update-all-trackers", {
         blocked: false,
-        blocklist: this.blocklist,
+        allTrackers: this.allTrackers,
       });
       document.querySelectorAll(".tracker-checkbox").forEach(checkbox => {
         checkbox.checked = false;
@@ -48,33 +54,38 @@ class WebcompatDebugger {
     });
   }
 
-  populateTrackersList(tracker) {
+  populateTrackersList() {
     const list = document.getElementById("trackers-list");
     list.innerHTML = ""; // Clear existing items
-    tracker.forEach(url => {
-      const listItem = document.createElement("li");
-      listItem.className = "tracker-item";
+    this.allTrackers.forEach(tracker => {
+      this.addTrackerToList(tracker);
+    })   
+  }
 
-      const checkbox = document.createElement("input");
-      checkbox.id = `tracker-${url}`;
-      checkbox.name = `tracker-${url}`;
-      checkbox.type = "checkbox";
-      checkbox.className = "tracker-checkbox";
-      checkbox.checked = true;
-      listItem.appendChild(checkbox);
+  addTrackerToList(tracker) {
+    const list = document.getElementById("trackers-list");
+    const listItem = document.createElement("li");
+    listItem.className = "tracker-item";
 
-      const listItemText = document.createElement("label");
-      listItemText.className = "tracker-text";
-      listItemText.textContent = url;
-      listItemText.setAttribute("for", `tracker-${url}`);
-      listItem.appendChild(listItemText);
+    const checkbox = document.createElement("input");
+    checkbox.id = `tracker-${tracker}`;
+    checkbox.name = `tracker-${tracker}`;
+    checkbox.type = "checkbox";
+    checkbox.className = "tracker-checkbox";
+    checkbox.checked = !(this.unblocked.has(tracker));
+    listItem.appendChild(checkbox);
 
-      list.appendChild(listItem);
-      checkbox.addEventListener("change", event => {
-        this.sendMessage("toggle-tracker", {
-          url,
-          blocked: event.target.checked,
-        });
+    const listItemText = document.createElement("label");
+    listItemText.className = "tracker-text";
+    listItemText.textContent = tracker;
+    listItemText.setAttribute("for", `tracker-${tracker}`);
+    listItem.appendChild(listItemText);
+
+    list.appendChild(listItem);
+    checkbox.addEventListener("change", event => {
+      this.sendMessage("toggle-tracker", {
+        tracker,
+        blocked: event.target.checked,
       });
     });
   }
@@ -88,11 +99,21 @@ class WebcompatDebugger {
 
   onMessage(request) {
     switch (request.msg) {
-      case "tracker-fetched":
-        this.blocklist = Object.entries(
-          JSON.parse(request.contentBlockingLog)
-        ).map(([url, _]) => url);
-        this.populateTrackersList(this.blocklist);
+      case "initial-trackers":
+        const { trackers } = request;
+        this.allTrackers = new Set(trackers);
+        this.populateTrackersList();
+        break;
+      case "blocked-request":
+        const { tracker } = request;
+        this.allTrackers.add(tracker);
+        this.populateTrackersList();
+        break;
+      case "unblocked-trackers":
+        const { unblockedTrackers } = request;
+        this.unblocked = new Set(unblockedTrackers);
+        console.log("unblocked trackers", this.unblocked);
+        this.populateTrackersList();
         break;
       default:
         console.error("Unknown message:", request);

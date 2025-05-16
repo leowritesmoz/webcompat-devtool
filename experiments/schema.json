@@ -21,7 +21,7 @@
         "async": true,
         "parameters": [
           {
-            "name": "hostnames",
+            "name": "tracker",
             "type": "array",
             "items": {
               "type": "string"
@@ -30,6 +30,26 @@
           {
             "name": "blocked",
             "type": "boolean"
+          }
+        ]
+      },
+      {
+        "name": "getUnblockedTrackers",
+        "type": "function",
+        "description": "Returns the unblocked trackers for the current tab.",
+        "async": true,
+        "parameters": []
+      }
+    ],
+    "events": [
+      {
+        "name": "stopRequestObserver",
+        "type": "function",
+        "description": "Fired when a request is blocked.",
+        "parameters": [
+          {
+            "name": "url",
+            "type": "string"
           }
         ]
       }
