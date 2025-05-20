@@ -14,10 +14,17 @@
   <body>
     <h1>Block/Unblock Fetches</h1>
     <div id="trackers-panel">
-      <input type="button" id="block-all" value="Block all" />
-      <input type="button" id="unblock-all" value="Unblock all" />
-      <input type="button" id="reset" value="Reset preferences" />
-      <ul id="trackers-list"></ul>
+      <div id="tracker-container">
+        <div id="tracker-control-panel">
+          <button id="block-selected">Block Selected</button>
+          <button id="unblock-selected">Unblock Selected</button>
+          <button type="button" id="reset">Reset Preferences</button>
+        </div>
+        <table id="tracker-table">
+          <thead id="tracker-table-head"></thead>
+          <tbody id="tracker-table-body"></tbody>
+        </table>
+      </div>
     </div>
   </body>
 </html>

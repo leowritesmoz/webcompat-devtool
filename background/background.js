@@ -14,7 +14,7 @@ async function sendUnblockedTrackersUpdate() {
 async function handleMessage(request) {
   switch (request.msg) {
     case "fetch-initial-trackers": {
-      const trackingFlags = [1 << 12, 1 << 6, 1 << 11, 1 << 14, 1 << 16, 1 << 22, 1 << 2];
+      const trackingFlags = [1 << 12, 1 << 6, 1 << 11, 1 << 16];
       const trackers = await browser.experiments.webcompatDebugger.getContentBlockingLog(request.tabId);
       const regexTrackers = Object.entries(JSON.parse(trackers))
         .filter(([_, flags]) => flags.some(el =>
@@ -44,7 +44,6 @@ async function handleMessage(request) {
         [tracker],
         blocked
       );
-
       await sendUnblockedTrackersUpdate();
       browser.tabs.reload(tabId, { bypassCache: true });
       return;
@@ -56,13 +55,15 @@ async function handleMessage(request) {
         Array.from(allTrackers),
         blocked
       );
-
       await sendUnblockedTrackersUpdate();
       browser.tabs.reload(tabId, { bypassCache: true });
       return;
     }
     case "reset": {
+      const { tabId } = request;
       await browser.experiments.webcompatDebugger.clearPreference();
+      await sendUnblockedTrackersUpdate();
+      browser.tabs.reload(tabId, { bypassCache: true });
       return;
     }
     default:

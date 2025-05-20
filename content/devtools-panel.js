@@ -4,12 +4,11 @@
 
 /* global browser */
 
-/**
- *
- */
 class WebcompatDebugger {
-  allTrackers = new Set(); 
+  allTrackers = new Set();
   unblockedTrackers = new Set();
+  selectedTrackers = new Set();
+
   constructor() {
     document.addEventListener(
       "DOMContentLoaded",
@@ -30,63 +29,139 @@ class WebcompatDebugger {
 
   setupListeners() {
     browser.runtime.onMessage.addListener(request => this.onMessage(request));
-    document.getElementById("block-all").addEventListener("click", () => {
-      this.sendMessage("update-all-trackers", {
-        blocked: true,
-        allTrackers: this.allTrackers,
-      });
-      document.querySelectorAll(".tracker-checkbox").forEach(checkbox => {
-        checkbox.checked = true;
-      });
-    });
-    document.getElementById("unblock-all").addEventListener("click", () => {
-      this.sendMessage("update-all-trackers", {
-        blocked: false,
-        allTrackers: this.allTrackers,
-      });
-      document.querySelectorAll(".tracker-checkbox").forEach(checkbox => {
-        checkbox.checked = false;
-      });
-    });
     document.getElementById("reset").addEventListener("click", () => {
-      this.sendMessage("reset")
-    })
+      this.sendMessage("reset", browser.devtools.inspectedWindow.tabId,)
+    });
+    document.getElementById("block-selected").addEventListener("click", () => {
+      this.blockOrUnblockSelected(true)
+    });
+    document.getElementById("unblock-selected").addEventListener("click", () => {
+      this.blockOrUnblockSelected(false)
+    });
   }
 
-  populateTrackersList() {
-    const list = document.getElementById("trackers-list");
-    list.innerHTML = ""; // Clear existing items
+  populateTrackerTable() {
+    const table = document.getElementById("tracker-table");
+    table.innerHTML = '';
+    table.appendChild(this.createTableHead());
+    table.appendChild(this.createTableBody());
+  }
+
+  createTableHead() {
+    const thead = document.createElement("thead");
+    thead.id = 'tracker-table-head';
+    const headerRow = document.createElement("tr");
+    headerRow.id = 'tracker-table-header';
+
+    // Select all checkbox
+    const selectAllTh = document.createElement("th");
+    const selectAllCheckbox = document.createElement("input");
+    selectAllCheckbox.type = "checkbox";
+    selectAllCheckbox.addEventListener("change", (e) => {
+      const checked = e.target.checked;
+      this.selectedTrackers = new Set();
+      document.querySelectorAll('.row-checkbox').forEach(cb => {
+        cb.checked = checked;
+        if (checked) this.selectedTrackers.add(cb.dataset.tracker);
+      });
+    });
+    selectAllTh.appendChild(selectAllCheckbox);
+    headerRow.appendChild(selectAllTh);
+
+    ["Blocked", "Hostname", "Action"].forEach(name => {
+      const th = document.createElement("th");
+      th.textContent = name;
+      headerRow.appendChild(th);
+    });
+    thead.appendChild(headerRow);
+    return thead;
+  }
+
+  createTableBody() {
+    const tbody = document.createElement("tbody");
     this.allTrackers.forEach(tracker => {
-      this.addTrackerToList(tracker);
-    })   
+      tbody.appendChild(this.createTrackerRow(tracker));
+    });
+    return tbody;
   }
 
-  addTrackerToList(tracker) {
-    const list = document.getElementById("trackers-list");
-    const listItem = document.createElement("li");
-    listItem.className = "tracker-item";
+  createTrackerRow(tracker) {
+    const isBlocked = !this.unblockedTrackers.has(tracker);
+    const row = document.createElement("tr");
 
+    // Checkbox column
+    row.appendChild(this.createRowCheckboxCell(tracker));
+
+    // isBlocked column
+    const isBlockedCell = document.createElement("td");
+    isBlockedCell.textContent = isBlocked;
+    row.appendChild(isBlockedCell);
+
+    // Hostname column
+    const hostnameCell = document.createElement("td");
+    hostnameCell.textContent = tracker;
+    row.appendChild(hostnameCell);
+
+    // Action column
+    row.appendChild(this.createActionCell(tracker, isBlocked));
+
+    return row;
+  }
+
+  createRowCheckboxCell(tracker) {
+    const checkboxCell = document.createElement("td");
     const checkbox = document.createElement("input");
-    checkbox.id = `tracker-${tracker}`;
-    checkbox.name = `tracker-${tracker}`;
     checkbox.type = "checkbox";
-    checkbox.className = "tracker-checkbox";
-    checkbox.checked = !(this.unblockedTrackers.has(tracker));
-    listItem.appendChild(checkbox);
+    checkbox.className = "row-checkbox";
+    checkbox.dataset.tracker = tracker;
+    checkbox.checked = this.selectedTrackers.has(tracker);
+    checkbox.addEventListener("change", (e) => {
+      if (e.target.checked) {
+        this.selectedTrackers.add(tracker);
+      } else {
+        this.selectedTrackers.delete(tracker);
+      }
+    });
+    checkboxCell.appendChild(checkbox);
+    return checkboxCell;
+  }
 
-    const listItemText = document.createElement("label");
-    listItemText.className = "tracker-text";
-    listItemText.textContent = tracker;
-    listItemText.setAttribute("for", `tracker-${tracker}`);
-    listItem.appendChild(listItemText);
-
-    list.appendChild(listItem);
-    checkbox.addEventListener("change", event => {
+  createActionCell(tracker, isBlocked) {
+    const actionCell = document.createElement("td");
+    const button = document.createElement("button");
+    button.textContent = isBlocked ? "Unblock" : "Block";
+    button.addEventListener("click", () => {
       this.sendMessage("toggle-tracker", {
         tracker,
-        blocked: event.target.checked,
+        blocked: !isBlocked,
       });
+      // Optimistically update UI
+      if (isBlocked) {
+        this.unblockedTrackers.add(tracker);
+      } else {
+        this.unblockedTrackers.delete(tracker);
+      }
+      this.populateTrackerTable();
     });
+    actionCell.appendChild(button);
+    return actionCell;
+  }
+
+  blockOrUnblockSelected(blocked) {
+    if (this.selectedTrackers.size === 0) return;
+    this.sendMessage("update-selected-trackers", {
+      blocked,
+      trackers: Array.from(this.selectedTrackers),
+    });
+    // Optimistically update UI
+    this.selectedTrackers.forEach(tracker => {
+      if (blocked) {
+        this.unblockedTrackers.delete(tracker);
+      } else {
+        this.unblockedTrackers.add(tracker);
+      }
+    });
+    this.populateTrackerTable();
   }
 
   sendMessage(msg, request) {
@@ -101,18 +176,17 @@ class WebcompatDebugger {
       case "initial-trackers":
         const { trackers } = request;
         this.allTrackers = new Set(trackers);
-        this.populateTrackersList();
+        this.populateTrackerTable();
         break;
       case "blocked-request":
         const { tracker } = request;
         this.allTrackers.add(tracker);
-        this.populateTrackersList();
+        this.populateTrackerTable();
         break;
       case "unblocked-trackers":
         const { unblockedTrackers } = request;
         this.unblockedTrackers = new Set(unblockedTrackers);
-        console.log("unblocked trackers", this.unblockedTrackers);
-        this.populateTrackersList();
+        this.populateTrackerTable();
         break;
       default:
         console.error("Unknown message:", request);
