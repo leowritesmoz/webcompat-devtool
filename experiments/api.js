@@ -8,8 +8,6 @@ const TRACKING_PREF_SKIP_LISTS = [
   "urlclassifier.trackingSkipURLs",
   "urlclassifier.features.fingerprinting.skipURLs",
   "urlclassifier.features.socialtracking.skipURLs",
-  "urlclassifier.features.emailtracking.skipURLs",
-  "urlclassifier.features.emailtracking.datacollection.skipURLs",
   "urlclassifier.features.cryptomining.skipURLs",
 ];
 
@@ -61,7 +59,12 @@ this.webcompatDebugger = class extends ExtensionAPI {
               updatePref(prefName);
             });
           },
-          stopRequestObserver: new ExtensionCommon.EventManager({
+          async clearPreference() {
+            TRACKING_PREF_SKIP_LISTS.forEach(pref => {
+              Services.prefs.clearUserPref(pref)
+            })
+          },
+          blockedRequestObserver: new ExtensionCommon.EventManager({
             context,
             name: "webcompatDebugger.stopRequestObserver",
             register: fire => {
@@ -70,6 +73,7 @@ this.webcompatDebugger = class extends ExtensionAPI {
               ].getService(Ci.nsIChannelClassifierService);
               const observer = {
                 observe: (subject) => {
+                  console.log(subject)
                   fire.sync({
                     url: subject.url
                   });

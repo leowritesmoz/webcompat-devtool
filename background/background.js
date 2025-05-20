@@ -3,28 +3,37 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 /* global browser */
+async function sendUnblockedTrackersUpdate() {
+  const unblockedTrackers = await browser.experiments.webcompatDebugger.getUnblockedTrackers();
+  browser.runtime.sendMessage({
+    msg: "unblocked-trackers",
+    unblockedTrackers,
+  });
+}
 
 async function handleMessage(request) {
   switch (request.msg) {
     case "fetch-initial-trackers": {
-      console.log(request.tabId)
-     const trackers = await browser.experiments.webcompatDebugger.getContentBlockingLog(request.tabId); 
-     const regexTrackers = Object.keys(JSON.parse(trackers)).map(tracker => {
-        const { hostname } = new URL(tracker);
-        return `*://${hostname}/*`;
-      })
-     browser.runtime.sendMessage({
+      const trackingFlags = [1 << 12, 1 << 6, 1 << 11, 1 << 14, 1 << 16, 1 << 22, 1 << 2];
+      const trackers = await browser.experiments.webcompatDebugger.getContentBlockingLog(request.tabId);
+      const regexTrackers = Object.entries(JSON.parse(trackers))
+        .filter(([_, flags]) => flags.some(el =>
+          trackingFlags.includes(el[0])
+        ))
+        .map(([tracker, _]) => {
+          // might be useful to keep flags so we know which preference to add it to
+          console.log(tracker)
+          const { hostname } = new URL(tracker);
+          return `*://${hostname}/*`;
+        })
+      browser.runtime.sendMessage({
         msg: "initial-trackers",
         trackers: regexTrackers
       });
     }
     case "get-unblocked-trackers": {
       // Fetch and send the list of unblocked trackers
-      const unblockedTrackers = await browser.experiments.webcompatDebugger.getUnblockedTrackers();
-      browser.runtime.sendMessage({
-        msg: "unblocked-trackers",
-        unblockedTrackers,
-      });
+      await sendUnblockedTrackersUpdate();
       return;
     }
     case "toggle-tracker": {
@@ -35,12 +44,8 @@ async function handleMessage(request) {
         [tracker],
         blocked
       );
-      const unblockedTrackers = await browser.experiments.webcompatDebugger.getUnblockedTrackers();
-      browser.runtime.sendMessage({
-        msg: "unblocked-trackers",
-        unblockedTrackers,
-      });
 
+      await sendUnblockedTrackersUpdate();
       browser.tabs.reload(tabId, { bypassCache: true });
       return;
     }
@@ -52,7 +57,12 @@ async function handleMessage(request) {
         blocked
       );
 
+      await sendUnblockedTrackersUpdate();
       browser.tabs.reload(tabId, { bypassCache: true });
+      return;
+    }
+    case "reset": {
+      await browser.experiments.webcompatDebugger.clearPreference();
       return;
     }
     default:
@@ -60,15 +70,15 @@ async function handleMessage(request) {
   }
 }
 
-browser.runtime.onMessage.addListener(handleMessage); 
+browser.runtime.onMessage.addListener(handleMessage);
 
 // Listen for blocked requests and send them to the content script
-browser.experiments.webcompatDebugger.stopRequestObserver.addListener(({ url }) => {
+browser.experiments.webcompatDebugger.blockedRequestObserver.addListener(({ url }) => {
   const { hostname } = new URL(url);
-    const tracker = `*://${hostname}/*`;
-    browser.runtime.sendMessage({
-      msg: "blocked-request",
-      tracker
-    });
+  const tracker = `*://${hostname}/*`;
+  browser.runtime.sendMessage({
+    msg: "blocked-request",
+    tracker
+  });
 })
 

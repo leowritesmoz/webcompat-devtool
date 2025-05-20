@@ -9,11 +9,7 @@
  */
 class WebcompatDebugger {
   allTrackers = new Set(); 
-  unblocked = new Set();
-  // when a page refreshes, need to clear the allTrackers
-  // need to maintain two lists: one for the entire block list, another for the trackers 
-  // that are allowed to be unblocked for now
-  // when the pages 
+  unblockedTrackers = new Set();
   constructor() {
     document.addEventListener(
       "DOMContentLoaded",
@@ -26,10 +22,10 @@ class WebcompatDebugger {
 
   init() {
     this.setupListeners();
-    this.sendMessage("get-unblocked-trackers");
     this.sendMessage("fetch-initial-trackers", {
       tabId: browser.devtools.inspectedWindow.tabId,
     });
+    this.sendMessage("get-unblocked-trackers");
   }
 
   setupListeners() {
@@ -52,6 +48,9 @@ class WebcompatDebugger {
         checkbox.checked = false;
       });
     });
+    document.getElementById("reset").addEventListener("click", () => {
+      this.sendMessage("reset")
+    })
   }
 
   populateTrackersList() {
@@ -72,7 +71,7 @@ class WebcompatDebugger {
     checkbox.name = `tracker-${tracker}`;
     checkbox.type = "checkbox";
     checkbox.className = "tracker-checkbox";
-    checkbox.checked = !(this.unblocked.has(tracker));
+    checkbox.checked = !(this.unblockedTrackers.has(tracker));
     listItem.appendChild(checkbox);
 
     const listItemText = document.createElement("label");
@@ -111,8 +110,8 @@ class WebcompatDebugger {
         break;
       case "unblocked-trackers":
         const { unblockedTrackers } = request;
-        this.unblocked = new Set(unblockedTrackers);
-        console.log("unblocked trackers", this.unblocked);
+        this.unblockedTrackers = new Set(unblockedTrackers);
+        console.log("unblocked trackers", this.unblockedTrackers);
         this.populateTrackersList();
         break;
       default:

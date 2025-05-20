@@ -39,11 +39,17 @@
         "description": "Returns the unblocked trackers for the current tab.",
         "async": true,
         "parameters": []
+      },
+      {
+        "name": "clearPreference",
+        "type": "function",
+        "description": "Clear skipURLs.",
+        "parameters": []
       }
     ],
     "events": [
       {
-        "name": "stopRequestObserver",
+        "name": "blockedRequestObserver",
         "type": "function",
         "description": "Fired when a request is blocked.",
         "parameters": [
