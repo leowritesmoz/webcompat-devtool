@@ -20,28 +20,36 @@ this.webcompatDebugger = class extends ExtensionAPI {
           async getUnblockedTrackers() {
             const unblockedTrackers = new Set();
             TRACKING_PREF_SKIP_LISTS.forEach(prefName => {
+              console.assert(typeof prefName === "string", "Preference name should be a string");
               const prefValue = Services.prefs.getStringPref(prefName, "");
               prefValue.split(",").forEach(hostname => {
-                unblockedTrackers.add(hostname.trim());
+                if (hostname.trim()) {
+                  unblockedTrackers.add(hostname.trim());
+                }
               });
             });
             return Array.from(unblockedTrackers);
           },
           async getContentBlockingLog(tabId) {
+            console.assert(tabId, "tabId must be provided");
             const tab = tabManager.get(tabId);
-            if (!tab) {
-              throw new ExtensionError("Invalid tabId");
-            }
             return tab.browsingContext.currentWindowGlobal.contentBlockingLog;
           },
           async updateTrackingSkipURLs(hostnames, blocked) {
+            console.assert(Array.isArray(hostnames) || hostnames instanceof Set, "hostnames must be an array or set");
+            console.assert(typeof blocked === "boolean", "blocked must be a boolean");
+            const hostArr = Array.from(hostnames);
+            hostArr.forEach(hostname => {
+              console.assert(typeof hostname === "string", "Each hostname must be a string");
+            });
+
             const updatePref = prefName => {
               const oldPrefs = Services.prefs.getStringPref(prefName, "");
               const a = oldPrefs
                 .split(",")
                 .map(s => s.trim())
               const oldPrefsSet = new Set(a);
-              hostnames.forEach(hostname => {
+              hostArr.forEach(hostname => {
                 if (blocked) {
                   oldPrefsSet.delete(hostname);
                 } else {
@@ -61,6 +69,7 @@ this.webcompatDebugger = class extends ExtensionAPI {
           },
           async clearPreference() {
             TRACKING_PREF_SKIP_LISTS.forEach(pref => {
+              console.assert(typeof pref === "string", "Preference name should be a string");
               Services.prefs.clearUserPref(pref)
             })
           },
@@ -71,8 +80,11 @@ this.webcompatDebugger = class extends ExtensionAPI {
               const channelClassifier = Cc[
                 "@mozilla.org/url-classifier/channel-classifier-service;1"
               ].getService(Ci.nsIChannelClassifierService);
+              console.assert(channelClassifier, "channelClassifier should be available");
               const observer = {
                 observe: (subject) => {
+                  console.assert(subject && typeof subject === "object", "Observer subject should be an object");
+                  console.assert("url" in subject, "Observer subject should have a url property");
                   console.log(subject)
                   fire.sync({
                     url: subject.url

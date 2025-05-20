@@ -17,12 +17,13 @@ class WebcompatDebugger {
       },
       { once: true }
     );
+    this.tabId = browser.devtools.inspectedWindow.tabId;
   }
 
   init() {
     this.setupListeners();
     this.sendMessage("fetch-initial-trackers", {
-      tabId: browser.devtools.inspectedWindow.tabId,
+      tabId: this.tabId
     });
     this.sendMessage("get-unblocked-trackers");
   }
@@ -30,7 +31,7 @@ class WebcompatDebugger {
   setupListeners() {
     browser.runtime.onMessage.addListener(request => this.onMessage(request));
     document.getElementById("reset").addEventListener("click", () => {
-      this.sendMessage("reset", browser.devtools.inspectedWindow.tabId,)
+      this.sendMessage("reset", { tabId: this.tabId })
     });
     document.getElementById("block-selected").addEventListener("click", () => {
       this.blockOrUnblockSelected(true)
@@ -134,6 +135,7 @@ class WebcompatDebugger {
       this.sendMessage("toggle-tracker", {
         tracker,
         blocked: !isBlocked,
+        tabId: this.tabId
       });
       // Optimistically update UI
       if (isBlocked) {
@@ -149,9 +151,10 @@ class WebcompatDebugger {
 
   blockOrUnblockSelected(blocked) {
     if (this.selectedTrackers.size === 0) return;
-    this.sendMessage("update-selected-trackers", {
+    this.sendMessage("update-multiple-trackers", {
       blocked,
       trackers: Array.from(this.selectedTrackers),
+      tabId: this.tabId
     });
     // Optimistically update UI
     this.selectedTrackers.forEach(tracker => {
