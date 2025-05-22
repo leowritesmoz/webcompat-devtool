@@ -175,6 +175,9 @@ class WebcompatDebugger {
   }
 
   onMessage(request) {
+    if (request.tabId != browser.devtools.inspectedWindow.tabId) {
+      return;
+    }
     switch (request.msg) {
       case "initial-trackers":
         const { trackers } = request;

@@ -56,6 +56,10 @@
           {
             "name": "url",
             "type": "string"
+          },
+          {
+            "name": "tabId",
+            "type": "string"
           }
         ]
       }

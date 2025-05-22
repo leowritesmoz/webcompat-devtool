@@ -31,7 +31,7 @@ this.webcompatDebugger = class extends ExtensionAPI {
             return Array.from(unblockedTrackers);
           },
           async getContentBlockingLog(tabId) {
-            console.assert(tabId, "tabId must be provided");
+            console.assert(tabId !== undefined, "tabId must be provided");
             const tab = tabManager.get(tabId);
             return tab.browsingContext.currentWindowGlobal.contentBlockingLog;
           },
@@ -56,7 +56,6 @@ this.webcompatDebugger = class extends ExtensionAPI {
                   oldPrefsSet.add(hostname);
                 }
               });
-              console.log(oldPrefsSet);
               Services.prefs.setStringPref(
                 prefName,
                 Array.from(oldPrefsSet).join(",")
@@ -80,14 +79,11 @@ this.webcompatDebugger = class extends ExtensionAPI {
               const channelClassifier = Cc[
                 "@mozilla.org/url-classifier/channel-classifier-service;1"
               ].getService(Ci.nsIChannelClassifierService);
-              console.assert(channelClassifier, "channelClassifier should be available");
               const observer = {
                 observe: (subject) => {
-                  console.assert(subject && typeof subject === "object", "Observer subject should be an object");
-                  console.assert("url" in subject, "Observer subject should have a url property");
-                  console.log(subject)
+                  subject.QueryInterface(Ci.nsIChannel)
                   fire.sync({
-                    url: subject.url
+                    url: subject.url,
                   });
                 },
               };
