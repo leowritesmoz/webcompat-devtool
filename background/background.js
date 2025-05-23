@@ -3,6 +3,14 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 /* global browser */
+
+const typeToName = {
+  4096: "Tracking Content",
+  64: "Fingerprinting",
+  2048: "Cryptomining",
+  65536: "Scoial Tracker"
+}
+
 async function sendUnblockedTrackersUpdate(tabId) {
   const unblockedTrackers = await browser.experiments.webcompatDebugger.getUnblockedTrackers();
   console.assert(Array.isArray(unblockedTrackers), "unblockedTrackers should be an array");
@@ -31,7 +39,7 @@ async function handleMessage(request) {
         ))
         .map(([tracker, flags]) => {
           const { hostname } = new URL(tracker);
-          return `*://${hostname}/*`;
+          return [`*://${hostname}/*`, typeToName[flags[0][0]]];
         })
       browser.runtime.sendMessage({
         msg: "initial-trackers",
@@ -99,3 +107,7 @@ browser.experiments.webcompatDebugger.blockedRequestObserver.addListener(async (
     tracker
   });
 })
+
+// backend -> send back regex domain, tracker type (if this is an unblocked tracker from 
+// preferences, type won't be available)
+// frontend -> simply display the domain and now accept one more param: tracker type

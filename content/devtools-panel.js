@@ -25,7 +25,9 @@ class WebcompatDebugger {
     this.sendMessage("fetch-initial-trackers", {
       tabId: this.tabId
     });
-    this.sendMessage("get-unblocked-trackers");
+    this.sendMessage("get-unblocked-trackers", {
+      tabId: this.tabId
+    });
   }
 
   setupListeners() {
@@ -69,7 +71,7 @@ class WebcompatDebugger {
     selectAllTh.appendChild(selectAllCheckbox);
     headerRow.appendChild(selectAllTh);
 
-    ["Blocked", "Hostname", "Action"].forEach(name => {
+    ["Blocked", "Hostname", "Type", "Action"].forEach(name => {
       const th = document.createElement("th");
       th.textContent = name;
       headerRow.appendChild(th);
@@ -80,31 +82,32 @@ class WebcompatDebugger {
 
   createTableBody() {
     const tbody = document.createElement("tbody");
-    this.allTrackers.forEach(tracker => {
-      tbody.appendChild(this.createTrackerRow(tracker));
+    Object.entries(this.allTrackers).forEach(([hostname, trackerType]) => {
+      tbody.appendChild(this.createTrackerRow(hostname, trackerType));
     });
     return tbody;
   }
 
-  createTrackerRow(tracker) {
-    const isBlocked = !this.unblockedTrackers.has(tracker);
+  createTrackerRow(hostname, trackerType) {
+    const isBlocked = !this.unblockedTrackers.has(hostname);
     const row = document.createElement("tr");
 
     // Checkbox column
-    row.appendChild(this.createRowCheckboxCell(tracker));
+    row.appendChild(this.createRowCheckboxCell(hostname));
 
-    // isBlocked column
     const isBlockedCell = document.createElement("td");
     isBlockedCell.textContent = isBlocked;
     row.appendChild(isBlockedCell);
 
-    // Hostname column
     const hostnameCell = document.createElement("td");
-    hostnameCell.textContent = tracker;
+    hostnameCell.textContent = hostname;
     row.appendChild(hostnameCell);
 
-    // Action column
-    row.appendChild(this.createActionCell(tracker, isBlocked));
+    const trackerTypeCell = document.createElement("td");
+    trackerTypeCell.textContent = trackerType || "N/A";
+    row.appendChild(trackerTypeCell);
+
+    row.appendChild(this.createActionCell(hostname, isBlocked));
 
     return row;
   }
@@ -181,7 +184,7 @@ class WebcompatDebugger {
     switch (request.msg) {
       case "initial-trackers":
         const { trackers } = request;
-        this.allTrackers = new Set(trackers);
+        this.allTrackers = Object.fromEntries(trackers)
         this.populateTrackerTable();
         break;
       case "blocked-request":
@@ -191,6 +194,11 @@ class WebcompatDebugger {
         break;
       case "unblocked-trackers":
         const { unblockedTrackers } = request;
+        unblockedTrackers.forEach(tracker => {
+          if (!(tracker in this.allTrackers)) {
+            this.allTrackers[tracker] = "N/A"
+          }
+        })
         this.unblockedTrackers = new Set(unblockedTrackers);
         this.populateTrackerTable();
         break;
