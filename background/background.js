@@ -5,10 +5,17 @@
 /* global browser */
 
 const typeToName = {
-  4096: "Tracking Content",
+  // Mapping from nsIUrlClassifierBlockedChannel.idl https://searchfox.org/mozilla-central/source/netwerk/url-classifier/nsIChannelClassifierService.idl#16
+  0: "Tracking Content",
+  1: "Social Tracker",
+  2: "Fingerprinting",
+  3: "Cryptomining",
+
+  // Mapping from nsIWebProgressListener.idl https://searchfox.org/mozilla-central/source/uriloader/base/nsIWebProgressListener.idl#373
   64: "Fingerprinting",
   2048: "Cryptomining",
-  65536: "Scoial Tracker"
+  4096: "Tracking Content",
+  65536: "Social Tracker",
 }
 
 async function sendUnblockedTrackersUpdate(tabId) {
@@ -41,6 +48,7 @@ async function handleMessage(request) {
           const { hostname } = new URL(tracker);
           return [`*://${hostname}/*`, typeToName[flags[0][0]]];
         })
+      console.log(`Incmoding tab Id: ${request.tabId}`);
       browser.runtime.sendMessage({
         msg: "initial-trackers",
         trackers: regexTrackers,
@@ -98,13 +106,22 @@ async function handleMessage(request) {
 browser.runtime.onMessage.addListener(handleMessage);
 
 // Listen for blocked requests and send them to the content script
-browser.experiments.webcompatDebugger.blockedRequestObserver.addListener(async ({ url, tabId }) => {
+browser.experiments.webcompatDebugger.blockedRequestObserver.addListener(async ({ url, topLevelUrl, trackerType }) => {
   console.assert(typeof url === "string", "blockedRequestObserver: url must be a string");
   const { hostname } = new URL(url);
+  let tabId;
+  const result = await browser.tabs.query({})
+  result.forEach(tab => {
+    if (tab.url === topLevelUrl) {
+      tabId = tab.id
+    }
+  })
   const tracker = `*://${hostname}/*`;
   browser.runtime.sendMessage({
     msg: "blocked-request",
-    tracker
+    tracker,
+    tabId,
+    trackerType: typeToName[trackerType] 
   });
 })
 

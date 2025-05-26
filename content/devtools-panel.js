@@ -188,8 +188,8 @@ class WebcompatDebugger {
         this.populateTrackerTable();
         break;
       case "blocked-request":
-        const { tracker } = request;
-        this.allTrackers.add(tracker);
+        const { tracker, trackerType } = request;
+        this.allTrackers[tracker] = trackerType;
         this.populateTrackerTable();
         break;
       case "unblocked-trackers":

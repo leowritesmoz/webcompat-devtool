@@ -81,9 +81,10 @@ this.webcompatDebugger = class extends ExtensionAPI {
               ].getService(Ci.nsIChannelClassifierService);
               const observer = {
                 observe: (subject) => {
-                  subject.QueryInterface(Ci.nsIChannel)
                   fire.sync({
                     url: subject.url,
+                    topLevelUrl: subject.topLevelUrl,
+                    trackerType: subject.reason
                   });
                 },
               };
