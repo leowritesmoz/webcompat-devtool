@@ -81,9 +81,34 @@ this.webcompatDebugger = class extends ExtensionAPI {
               ].getService(Ci.nsIChannelClassifierService);
               const observer = {
                 observe: (subject) => {
+                  // To get the correct tabId:
+                  // - Iterate through all tabs in all windows, for each tab, check if browserId
+                  //    matches subject.browserId
+                  // - On match, use tabManager.convert() to convert the tab element into 
+                  //    the WebExtension tab, with the correct Id
+                  const windows = Services.wm.getEnumerator("navigator:browser");
+                  let targetTab;
+                  while (windows.hasMoreElements()) {
+                    const win = windows.getNext();
+                    if (!win.gBrowser) {
+                      continue;
+                    }
+                    win.gBrowser.tabs.forEach(tab => { 
+                      const { browserId } = win.gBrowser.getBrowserForTab(tab)
+                      if (browserId === subject.browserId) {
+                        targetTab = tab
+                      }
+                    })
+                    if (!targetTab) {
+                      console.log("Unable to find tab")
+                      return;
+                    }
+                  }
+                  const { tabManager } = this.extension
+                  const tabId = tabManager.convert(targetTab).id; 
                   fire.sync({
+                    tabId,
                     url: subject.url,
-                    topLevelUrl: subject.topLevelUrl,
                     trackerType: subject.reason
                   });
                 },

@@ -58,8 +58,8 @@
             "type": "string"
           },
           {
-            "name": "topLevelUrl",
-            "type": "string"
+            "name": "tabId",
+            "type": "integer"
           },
           {
             "name": "trackerType",

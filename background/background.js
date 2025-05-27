@@ -106,16 +106,9 @@ async function handleMessage(request) {
 browser.runtime.onMessage.addListener(handleMessage);
 
 // Listen for blocked requests and send them to the content script
-browser.experiments.webcompatDebugger.blockedRequestObserver.addListener(async ({ url, topLevelUrl, trackerType }) => {
+browser.experiments.webcompatDebugger.blockedRequestObserver.addListener(async ({ url, tabId, trackerType }) => {
   console.assert(typeof url === "string", "blockedRequestObserver: url must be a string");
   const { hostname } = new URL(url);
-  let tabId;
-  const result = await browser.tabs.query({})
-  result.forEach(tab => {
-    if (tab.url === topLevelUrl) {
-      tabId = tab.id
-    }
-  })
   const tracker = `*://${hostname}/*`;
   browser.runtime.sendMessage({
     msg: "blocked-request",
