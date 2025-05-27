@@ -1,15 +1,16 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
+/* This Source Code Form is subject to the terms of the Mozilla Public * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 /* global browser */
 
 class WebcompatDebugger {
-  allTrackers = new Set();
-  unblockedTrackers = new Set();
-  selectedTrackers = new Set();
-
+  allTrackers;
+  unblockedTrackers;
+  selectedTrackers;
   constructor() {
+    this.selectedTrackers = new Set();
+    this.unblockedTrackers = new Set();
+    this.allTrackers = {};
     document.addEventListener(
       "DOMContentLoaded",
       () => {
@@ -48,6 +49,11 @@ class WebcompatDebugger {
     table.innerHTML = '';
     table.appendChild(this.createTableHead());
     table.appendChild(this.createTableBody());
+    if (this.unblockedTrackers.size === 0 && Object.keys(this.allTrackers).length === 0) {
+      const noContentMessage = document.createElement("p");
+      noContentMessage.textContent = "No data";
+      table.appendChild(noContentMessage);
+    }
   }
 
   createTableHead() {
