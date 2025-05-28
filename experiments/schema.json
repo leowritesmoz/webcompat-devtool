@@ -30,6 +30,13 @@
           {
             "name": "blocked",
             "type": "boolean"
+          },
+          {
+            "name": "channelId",
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
           }
         ]
       },

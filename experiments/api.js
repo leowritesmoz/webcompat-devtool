@@ -20,7 +20,6 @@ this.webcompatDebugger = class extends ExtensionAPI {
           async getUnblockedTrackers() {
             const unblockedTrackers = new Set();
             TRACKING_PREF_SKIP_LISTS.forEach(prefName => {
-              console.assert(typeof prefName === "string", "Preference name should be a string");
               const prefValue = Services.prefs.getStringPref(prefName, "");
               prefValue.split(",").forEach(hostname => {
                 if (hostname.trim()) {
@@ -31,7 +30,6 @@ this.webcompatDebugger = class extends ExtensionAPI {
             return Array.from(unblockedTrackers);
           },
           async getContentBlockingLog(tabId) {
-            console.assert(tabId !== undefined, "tabId must be provided");
             const tab = tabManager.get(tabId);
             return tab.browsingContext.currentWindowGlobal.contentBlockingLog;
           },
@@ -65,10 +63,17 @@ this.webcompatDebugger = class extends ExtensionAPI {
             TRACKING_PREF_SKIP_LISTS.forEach(prefName => {
               updatePref(prefName);
             });
+            // channelIds.forEach(channelId => {
+            //   const channel = context.channels[channelId]
+            //   if (!channel) {
+            //     return;
+            //   }
+            //   channel.allow() // not sure if this is working
+            //   console.log(`Allowed channel ${channelId}`)
+            // })
           },
           async clearPreference() {
             TRACKING_PREF_SKIP_LISTS.forEach(pref => {
-              console.assert(typeof pref === "string", "Preference name should be a string");
               Services.prefs.clearUserPref(pref)
             })
           },
@@ -79,6 +84,9 @@ this.webcompatDebugger = class extends ExtensionAPI {
               const channelClassifier = Cc[
                 "@mozilla.org/url-classifier/channel-classifier-service;1"
               ].getService(Ci.nsIChannelClassifierService);
+              if (!context.channels) {
+                context.channels = {}
+              }
               const observer = {
                 observe: (subject) => {
                   // To get the correct tabId:
@@ -86,30 +94,40 @@ this.webcompatDebugger = class extends ExtensionAPI {
                   //    matches subject.browserId
                   // - On match, use tabManager.convert() to convert the tab element into 
                   //    the WebExtension tab, with the correct Id
+                  const channel = subject.QueryInterface(Ci.nsIUrlClassifierBlockedChannel)
+                  // channel.allow() // this works
+                  const { channelId } = channel;
+                  context.channels[channelId] = channel;
                   const windows = Services.wm.getEnumerator("navigator:browser");
                   let targetTab;
-                  while (windows.hasMoreElements()) {
+                  if (!subject || !subject.browserId) {
+                    console.log("No subject or browserId");
+                    return;
+                  }
+                  while (windows.hasMoreElements() && !targetTab) {
                     const win = windows.getNext();
                     if (!win.gBrowser) {
                       continue;
                     }
-                    win.gBrowser.tabs.forEach(tab => { 
-                      const { browserId } = win.gBrowser.getBrowserForTab(tab)
+                    for (const tab of win.gBrowser.tabs) {
+                      const { browserId } = win.gBrowser.getBrowserForTab(tab);
                       if (browserId === subject.browserId) {
-                        targetTab = tab
+                        targetTab = tab;
+                        break;
                       }
-                    })
-                    if (!targetTab) {
-                      console.log("Unable to find tab")
-                      return;
                     }
+                  }
+                  if (!targetTab) {
+                    console.log("Unable to find tab");
+                    return;
                   }
                   const { tabManager } = this.extension
                   const tabId = tabManager.convert(targetTab).id; 
                   fire.sync({
                     tabId,
+                    channelId,
                     url: subject.url,
-                    trackerType: subject.reason
+                    trackerType: subject.reason,
                   });
                 },
               };
