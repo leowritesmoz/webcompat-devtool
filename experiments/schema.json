@@ -30,13 +30,6 @@
           {
             "name": "blocked",
             "type": "boolean"
-          },
-          {
-            "name": "channelId",
-            "type": "array",
-            "items": {
-              "type": "integer"
-            }
           }
         ]
       },
@@ -48,9 +41,9 @@
         "parameters": []
       },
       {
-        "name": "clearPreference",
+        "name": "clearUnblockList",
         "type": "function",
-        "description": "Clear skipURLs.",
+        "description": "Clear list of  unblocked resources.",
         "parameters": []
       }
     ],

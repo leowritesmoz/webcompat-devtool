@@ -34,15 +34,14 @@ async function handleMessage(request) {
       return;
     }
     case "toggle-tracker": {
-      // Toggle the blocked status of a single tracker
-      const { tracker, blocked, tabId, channelId } = request;
+      const { tracker, blocked, tabId } = request;
 
       await browser.experiments.webcompatDebugger.updateTrackingSkipURLs(
         [tracker],
         blocked,
-        [channelId]
       );
       await sendUnblockedTrackersUpdate(tabId);
+      browser.tabs.reload(tabId, { bypassCache: true })
       return;
     }
     case "update-multiple-trackers": {
@@ -50,7 +49,7 @@ async function handleMessage(request) {
 
       await browser.experiments.webcompatDebugger.updateTrackingSkipURLs(
         Array.from(trackers),
-        blocked
+        blocked,
       );
       await sendUnblockedTrackersUpdate(tabId);
       browser.tabs.reload(tabId, { bypassCache: true });
@@ -59,7 +58,7 @@ async function handleMessage(request) {
     case "reset": {
       const { tabId } = request;
 
-      await browser.experiments.webcompatDebugger.clearPreference();
+      await browser.experiments.webcompatDebugger.clearUnblockList();
       await sendUnblockedTrackersUpdate(tabId);
       browser.tabs.reload(tabId, { bypassCache: true });
       return;
@@ -72,14 +71,11 @@ async function handleMessage(request) {
 browser.runtime.onMessage.addListener(handleMessage);
 
 // Listen for blocked requests and send them to the content script
-browser.experiments.webcompatDebugger.blockedRequestObserver.addListener(async ({ url, tabId, trackerType, channelId }) => {
-  const { hostname } = new URL(url);
-  const tracker = `*://${hostname}/*`;
+browser.experiments.webcompatDebugger.blockedRequestObserver.addListener(async ({ url, tabId, trackerType }) => {
   browser.runtime.sendMessage({
     msg: "blocked-request",
-    tracker,
+    tracker: url,
     tabId,
-    channelId,
     trackerType: typeToName[trackerType]
   });
 })

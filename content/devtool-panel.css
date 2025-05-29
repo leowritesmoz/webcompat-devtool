@@ -5,7 +5,7 @@
 }
 
 #tracker-table {
-  width: auto;
+  width: 100%;
   margin: 1em 0;
   border-collapse: collapse;
 }
@@ -43,9 +43,14 @@
   background: var(--theme-button-hover-background, #d0d0d0);
 }
 
-/* Style your panel container to match Firefox DevTools */
 #panel-container {
   padding: 1em;
   background: var(--theme-panel-background-color, #fff);
   color: var(--theme-panel-text-color, #000);
+}
+
+.hostname-cell {
+  max-width: 25rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
