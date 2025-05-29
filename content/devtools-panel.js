@@ -275,6 +275,9 @@ class DebuggerFSMContext {
   /**
    * @param {string[]} allTrackers - List of all tracker hostnames.
    */
+  /**
+   * @param {string[]} allTrackers - List of all tracker hostnames.
+   */
   constructor(allTrackers) {
     this.allTrackers = Array.isArray(allTrackers) ? allTrackers : [];
     this.subdomainStageTrackers = new Set();
@@ -294,19 +297,31 @@ class DebuggerFSMContext {
     if (state && state.constructor && state.constructor.name) {
       console.log(`FSM transitioned to: ${state.constructor.name}`);
     }
+    this.state = state;
+    if (state && state.constructor && state.constructor.name) {
+      console.log(`FSM transitioned to: ${state.constructor.name}`);
+    }
   }
 
   /**
    * Called when user clicks "Continue".
    */
+  /**
+   * Called when user clicks "Continue".
+   */
   onTestNextTracker = () => {
+    this.state.onTestNextTracker();
     this.state.onTestNextTracker();
   }
 
   /**
    * Called when user clicks "Website Broke".
    */
+  /**
+   * Called when user clicks "Website Broke".
+   */
   onWebsiteBroke = () => {
+    this.state.onWebsiteBroke();
     this.state.onWebsiteBroke();
   }
 
@@ -421,7 +436,11 @@ class SubdomainStageState {
     this.debuggerFSMContext = debuggerFSMContext;
     this.subdomains = Array.from(debuggerFSMContext.subdomainStageTrackers);
     this.lastSubdomain = null;
+    this.debuggerFSMContext = debuggerFSMContext;
+    this.subdomains = Array.from(debuggerFSMContext.subdomainStageTrackers);
+    this.lastSubdomain = null;
   }
+
 
   onTestNextTracker = () => {
     this.lastSubdomain = this.subdomains.shift();
