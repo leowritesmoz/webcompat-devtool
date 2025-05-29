@@ -4,28 +4,35 @@
 
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Document</title>
-    <script src="devtools-panel.js"></script>
-    <link rel="stylesheet" href="devtool-panel.css">
-  </head>
 
-  <body>
-    <h1>Block/Unblock Fetches</h1>
-    <div id="trackers-panel">
-      <div id="tracker-container">
-        <div id="tracker-control-panel">
-          <button id="block-selected">Block Selected</button>
-          <button id="unblock-selected">Unblock Selected</button>
-          <button type="button" id="reset">Reset Preferences</button>
-        </div>
-        <table id="tracker-table">
-          <thead id="tracker-table-head"></thead>
-          <tbody id="tracker-table-body"></tbody>
-        </table>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Document</title>
+  <script src="devtools-panel.js"></script>
+  <link rel="stylesheet" href="devtool-panel.css">
+</head>
+
+<body>
+  <h1>Block/Unblock Fetches</h1>
+  <div id="trackers-panel">
+    <div id="tracker-container">
+      <div id="tracker-control-panel">
+        <button id="block-selected">Block Selected</button>
+        <button id="unblock-selected">Unblock Selected</button>
+        <button id="reset">Reset unblock list</button>
+        <button id="interactive-debugging">Start Interactive Debugging</button>
+        <button id="website-broke">Website Broke</button>
+        <button id="test-next-tracker">Continue</button>
+        <button id="stop-debugging">Stop</button>
       </div>
+      <div id="interactive-debugger-prompt"></div>
+      <table id="tracker-table">
+        <thead id="tracker-table-head"></thead>
+        <tbody id="tracker-table-body"></tbody>
+      </table>
     </div>
-  </body>
+  </div>
+</body>
+
 </html>

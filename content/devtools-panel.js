@@ -40,6 +40,18 @@ class WebcompatDebugger {
     document.getElementById("unblock-selected").addEventListener("click", () => {
       this.blockOrUnblockSelected(false)
     });
+    document.getElementById("interactive-debugging").addEventListener("click", () => {
+      this.debuggerFSMContext = new DebuggerFSMContext(Object.keys(this.allTrackers));
+    })
+    document.getElementById("website-broke").addEventListener("click", () => {
+      this.debuggerFSMContext?.onWebsiteBroke();
+    })
+    document.getElementById("test-next-tracker").addEventListener("click", () => {
+      this.debuggerFSMContext?.onTestNextTracker();
+    })
+    document.getElementById("stop-debugging").addEventListener("click", () => {
+      this.debuggerFSMContext = undefined
+    })
   }
 
   populateTrackerTable() {
@@ -104,7 +116,9 @@ class WebcompatDebugger {
     row.appendChild(isBlockedCell);
 
     const hostnameCell = document.createElement("td");
+    hostnameCell.className = "hostname-cell"
     hostnameCell.textContent = hostname;
+    hostnameCell.title = hostname; // Show full hostname on hover
     row.appendChild(hostnameCell);
 
     const trackerTypeCell = document.createElement("td");
@@ -142,7 +156,6 @@ class WebcompatDebugger {
       this.sendMessage("toggle-tracker", {
         tracker,
         blocked: !isBlocked,
-        channelId: this.allTrackers[tracker].channelId,
         tabId: this.tabId
       });
       // Optimistically update UI
@@ -188,19 +201,15 @@ class WebcompatDebugger {
     }
     switch (request.msg) {
       case "blocked-request":
-        const { tracker, trackerType, channelId } = request;
-        // console.log(channelId)
-        this.allTrackers[tracker] = {
-          channelId: channelId,
-          trackerType
-        };
+        const { tracker, trackerType } = request;
+        this.allTrackers[tracker] = { trackerType };
         this.populateTrackerTable();
         break;
       case "unblocked-trackers":
         const { unblockedTrackers } = request;
         unblockedTrackers.forEach(tracker => {
           if (!(tracker in this.allTrackers)) {
-            this.allTrackers[tracker] = { channelId: 0, trackerType: "N/A" }
+            this.allTrackers[tracker] = { trackerType: "N/A" }
           }
         })
         this.unblockedTrackers = new Set(unblockedTrackers);
@@ -228,53 +237,102 @@ class DebuggerFSMContext {
   //  2. ask user if website is broken
   //    - broken -> add tracker to an "unblock" array, then unblock the tracker
   //  3. when the stack is empty, return the "unblock" array
-  init(allTrackers) {
+  constructor(allTrackers) {
     this.allTrackers = allTrackers
-    this.unblockedTrackers = allTrackers
-    this.state = new GroupStageState();
+    console.log(allTrackers)
+    this.state = new GroupStageState(this);
+    this.individualStageTrackers = []
+    this.necessaryTrackers = []
+    // TODO: continously unblock all cookies until nothing more loads
   }
   changeState(state) {
     this.state = state
   }
+
+  onTestNextTracker = () => {
+    this.state.onTestNextTracker()
+  }
+
+  onWebsiteBroke = () => {
+    this.state.onWebsiteBroke()
+  }
+
+  updatePromptText = (text) => {
+    const el = document.getElementById("interactive-debugger-prompt")
+    el.textContent = text
+  }
 }
 
-class DebuggerState {
-}
-
-class GroupStageState extends DebuggerState {
+class GroupStageState {
   constructor(debuggerFSMContext) {
     this.debuggerFSMContext = debuggerFSMContext
     const domainGroupsMap = {}
-    debuggerFSMContext.allTrackers.forEach(tracker => {
-      const domain = new URL(url).hostname.split('.').slice(-2).join('.');
+    this.debuggerFSMContext.allTrackers.forEach(tracker => {
+      const domain = new URL(tracker).hostname.split('.').slice(-2).join('.');
       domainGroupsMap[domain] = domainGroupsMap[domain] || []
       domainGroupsMap[domain].push(tracker)
     })
     this.domainGroups = Object.entries(domainGroupsMap).map(([domain, hostnames]) => [domain, hostnames])
-    this.individualStageTrackers = []
     this.lastGroupTrackers = []
+    this.debuggerFSMContext.updatePromptText(`Please click on "Continue" to start debugging`)
   }
 
-  popAndBlockNextGroup = () => {
+  onTestNextTracker = () => {
     this.lastGroupTrackers = this.domainGroups.pop()
+    if (!this.lastGroupTrackers) {
+      this.debuggerFSMContext.changeState(new IndiivdualStageState(this.debuggerFSMContext))
+      return;
+    }
     browser.runtime.sendMessage({
       msg: "update-multiple-trackers",
-      blocked,
-      trackers: currentGroup[1],
+      blocked: true,
+      trackers: this.lastGroupTrackers[1],
+      tabId: this.tabId
+    });
+    this.debuggerFSMContext.updatePromptText(`Please click on "Website Broke" if the website is broken, or "Continue" to test the next tracker `)
+  }
+
+  onWebsiteBroke = () => {
+    this.debuggerFSMContext.individualStageTrackers.push(...this.lastGroupTrackers[1])
+    // unblock the group to make sure the page works again
+    browser.runtime.sendMessage({
+      msg: "update-multiple-trackers",
+      blocked: false,
+      trackers: this.lastGroupTrackers[1],
+      tabId: this.tabId
+    })
+    this.debuggerFSMContext.updatePromptText(`Group ${this.lastGroupTrackers[0]} will be tested later`)
+  }
+}
+
+class IndiivdualStageState {
+  constructor(debuggerFSMContext) {
+    this.debuggerFSMContext = debuggerFSMContext
+  }
+  onTestNextTracker = () => {
+    this.lastTracker = this.debuggerFSMContext.individualStageTrackers.pop()
+    if (!this.lastTracker) {
+      this.debuggerFSMContext.updatePromptText(`Debugging finished, please add ${this.debuggerFSMContext.necessaryTrackers} to
+      the exceptions list`)
+      return;
+    }
+    browser.runtime.sendMessage({
+      msg: "update-multiple-trackers",
+      blocked: true,
+      trackers: this.lastTracker,
       tabId: this.tabId
     });
   }
 
-  addLastGroupToNextRound = (websiteBroke) => {
-    if (websiteBroke) {
-      this.individualStageTrackers.push(...this.lastGroupTrackers)
-    }
-  }
-}
-
-class IndiivdualStageState extends DebuggerState {
-  constructor(debuggerFSMContext) {
-    this.debuggerFSMContext = debuggerFSMContext
+  onWebsiteBroke = () => {
+    this.debuggerFSMContext.necessaryTrackers.push(...this.lastTracker)
+    browser.runtime.sendMessage({
+      msg: "update-multiple-trackers",
+      blocked: false,
+      trackers: this.lastTracker,
+      tabId: this.tabId
+    })
+    this.debuggerFSMContext.updatePromptText(`Added ${this.lastTracker} to necessary trackers`)
   }
 }
 
