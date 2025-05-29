@@ -4,58 +4,69 @@
 /* global browser */
 
 class WebcompatDebugger {
-  allTrackers;
-  unblockedTrackers;
-  selectedTrackers;
-
   constructor() {
     this.selectedTrackers = new Set();
     this.unblockedTrackers = new Set();
     this.allTrackers = {};
-    document.addEventListener(
-      "DOMContentLoaded",
-      () => {
-        this.init();
-      },
-      { once: true }
-    );
+    this.debuggerFSMContext = undefined
     this.tabId = browser.devtools.inspectedWindow.tabId;
+    document.addEventListener( "DOMContentLoaded", () => { this.init(); }, { once: true });
   }
 
-  init() {
+  /**
+   * Initialize listeners and request initial tracker data.
+   */
+  init = () => {
     this.setupListeners();
     this.sendMessage("get-unblocked-trackers", {
       tabId: this.tabId
     });
-  }
+  };
 
-  setupListeners() {
+  /**
+   * Set up UI and message listeners.
+   */
+  setupListeners = () => {
     browser.runtime.onMessage.addListener(request => this.onMessage(request));
-    document.getElementById("reset").addEventListener("click", () => {
-      this.sendMessage("reset", { tabId: this.tabId })
+    this.addClickListener("reset", () => { 
+      this.sendMessage("reset", { tabId: this.tabId }); 
+    }); 
+    this.addClickListener("block-selected", () => { 
+      this.blockOrUnblockSelected(true); 
     });
-    document.getElementById("block-selected").addEventListener("click", () => {
-      this.blockOrUnblockSelected(true)
+    this.addClickListener("unblock-selected", () => {
+      this.blockOrUnblockSelected(false);
     });
-    document.getElementById("unblock-selected").addEventListener("click", () => {
-      this.blockOrUnblockSelected(false)
-    });
-    document.getElementById("interactive-debugging").addEventListener("click", () => {
+    this.addClickListener("interactive-debugging", () => {
       this.debuggerFSMContext = new DebuggerFSMContext(Object.keys(this.allTrackers));
-    })
-    document.getElementById("website-broke").addEventListener("click", () => {
+    });
+    this.addClickListener("website-broke", () => {
       this.debuggerFSMContext?.onWebsiteBroke();
-    })
-    document.getElementById("test-next-tracker").addEventListener("click", () => {
+    });
+    this.addClickListener("test-next-tracker", () => {
       this.debuggerFSMContext?.onTestNextTracker();
-    })
-    document.getElementById("stop-debugging").addEventListener("click", () => {
-      this.debuggerFSMContext = undefined
-    })
-  }
+    });
+    this.addClickListener("stop-debugging", () => {
+      this.debuggerFSMContext = undefined;
+    });
+  };
 
-  populateTrackerTable() {
+  /**
+   * Helper to add click event listeners safely.
+   */
+  addClickListener = (id, handler) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener("click", handler);
+    }
+  };
+
+  /**
+   * Render the tracker table.
+   */
+  populateTrackerTable = () => {
     const table = document.getElementById("tracker-table");
+    if (!table) return;
     table.innerHTML = '';
     table.appendChild(this.createTableHead());
     table.appendChild(this.createTableBody());
@@ -64,9 +75,12 @@ class WebcompatDebugger {
       noContentMessage.textContent = "No blocked resources, try refreshing the page.";
       table.appendChild(noContentMessage);
     }
-  }
+  };
 
-  createTableHead() {
+  /**
+   * Create the table head for the tracker table.
+   */
+  createTableHead = () => {
     const thead = document.createElement("thead");
     thead.id = 'tracker-table-head';
     const headerRow = document.createElement("tr");
@@ -94,21 +108,25 @@ class WebcompatDebugger {
     });
     thead.appendChild(headerRow);
     return thead;
-  }
+  };
 
-  createTableBody() {
+  /**
+   * Create the table body for the tracker table.
+   */
+  createTableBody = () => {
     const tbody = document.createElement("tbody");
     Object.entries(this.allTrackers).forEach(([hostname, trackerData]) => {
       tbody.appendChild(this.createTrackerRow(hostname, trackerData));
     });
     return tbody;
-  }
+  };
 
-  createTrackerRow(hostname, trackerData) {
+  /**
+   * Create a row for a tracker.
+   */
+  createTrackerRow = (hostname, trackerData) => {
     const isBlocked = !this.unblockedTrackers.has(hostname);
     const row = document.createElement("tr");
-
-    // Checkbox column
     row.appendChild(this.createRowCheckboxCell(hostname));
 
     const isBlockedCell = document.createElement("td");
@@ -116,9 +134,9 @@ class WebcompatDebugger {
     row.appendChild(isBlockedCell);
 
     const hostnameCell = document.createElement("td");
-    hostnameCell.className = "hostname-cell"
+    hostnameCell.className = "hostname-cell";
     hostnameCell.textContent = hostname;
-    hostnameCell.title = hostname; // Show full hostname on hover
+    hostnameCell.title = hostname;
     row.appendChild(hostnameCell);
 
     const trackerTypeCell = document.createElement("td");
@@ -126,11 +144,13 @@ class WebcompatDebugger {
     row.appendChild(trackerTypeCell);
 
     row.appendChild(this.createActionCell(hostname, isBlocked));
-
     return row;
-  }
+  };
 
-  createRowCheckboxCell(tracker) {
+  /**
+   * Create a checkbox cell for a tracker row.
+   */
+  createRowCheckboxCell = (tracker) => {
     const checkboxCell = document.createElement("td");
     const checkbox = document.createElement("input");
     checkbox.type = "checkbox";
@@ -146,9 +166,12 @@ class WebcompatDebugger {
     });
     checkboxCell.appendChild(checkbox);
     return checkboxCell;
-  }
+  };
 
-  createActionCell(tracker, isBlocked) {
+  /**
+   * Create an action cell (block/unblock button) for a tracker row.
+   */
+  createActionCell = (tracker, isBlocked) => {
     const actionCell = document.createElement("td");
     const button = document.createElement("button");
     button.textContent = isBlocked ? "Unblock" : "Block";
@@ -168,9 +191,12 @@ class WebcompatDebugger {
     });
     actionCell.appendChild(button);
     return actionCell;
-  }
+  };
 
-  blockOrUnblockSelected(blocked) {
+  /**
+   * Block or unblock all selected trackers.
+   */
+  blockOrUnblockSelected = (blocked) => {
     if (this.selectedTrackers.size === 0) return;
     this.sendMessage("update-multiple-trackers", {
       blocked,
@@ -186,39 +212,47 @@ class WebcompatDebugger {
       }
     });
     this.populateTrackerTable();
-  }
+  };
 
-  sendMessage(msg, request) {
+  /**
+   * Send a message to the background script.
+   */
+  sendMessage = (msg, request) => {
     browser.runtime.sendMessage({
       msg,
       ...request,
     });
-  }
+  };
 
-  onMessage(request) {
+  /**
+   * Handle incoming messages from the background script.
+   */
+  onMessage = (request) => {
     if (request.tabId != browser.devtools.inspectedWindow.tabId) {
       return;
     }
     switch (request.msg) {
-      case "blocked-request":
+      case "blocked-request": {
         const { tracker, trackerType } = request;
         this.allTrackers[tracker] = { trackerType };
         this.populateTrackerTable();
         break;
-      case "unblocked-trackers":
+      }
+      case "unblocked-trackers": {
         const { unblockedTrackers } = request;
         unblockedTrackers.forEach(tracker => {
           if (!(tracker in this.allTrackers)) {
-            this.allTrackers[tracker] = { trackerType: "N/A" }
+            this.allTrackers[tracker] = { trackerType: "N/A" };
           }
-        })
+        });
         this.unblockedTrackers = new Set(unblockedTrackers);
         this.populateTrackerTable();
         break;
+      }
       default:
         console.error("Unknown message:", request);
     }
-  }
+  };
 }
 
 class DebuggerFSMContext {

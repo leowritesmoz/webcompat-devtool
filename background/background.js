@@ -20,11 +20,15 @@ const typeToName = {
 
 async function sendUnblockedTrackersUpdate(tabId) {
   const unblockedTrackers = await browser.experiments.webcompatDebugger.getUnblockedTrackers(tabId);
-  browser.runtime.sendMessage({
-    msg: "unblocked-trackers",
-    unblockedTrackers,
-    tabId
-  });
+  try {
+    await browser.runtime.sendMessage({
+      msg: "unblocked-trackers",
+      unblockedTrackers,
+      tabId
+    });
+  } catch (e) {
+    console.warn("Failed to send message to frontend (tab may be closed):", e);
+  }
 }
 
 async function handleMessage(request) {
@@ -42,7 +46,11 @@ async function handleMessage(request) {
         tabId
       );
       await sendUnblockedTrackersUpdate(tabId);
-      browser.tabs.reload(tabId, { bypassCache: true })
+      try {
+        await browser.tabs.reload(tabId, { bypassCache: true });
+      } catch (e) {
+        console.warn("Failed to reload tab (may be closed):", e);
+      }
       return;
     }
     case "update-multiple-trackers": {
@@ -54,7 +62,11 @@ async function handleMessage(request) {
         tabId
       );
       await sendUnblockedTrackersUpdate(tabId);
-      browser.tabs.reload(tabId, { bypassCache: true });
+      try {
+        await browser.tabs.reload(tabId, { bypassCache: true });
+      } catch (e) {
+        console.warn("Failed to reload tab (may be closed):", e);
+      }
       return;
     }
     case "reset": {
@@ -62,7 +74,11 @@ async function handleMessage(request) {
 
       await browser.experiments.webcompatDebugger.clearUnblockList(tabId);
       await sendUnblockedTrackersUpdate(tabId);
-      browser.tabs.reload(tabId, { bypassCache: true });
+      try {
+        await browser.tabs.reload(tabId, { bypassCache: true });
+      } catch (e) {
+        console.warn("Failed to reload tab (may be closed):", e);
+      }
       return;
     }
     default:
@@ -74,10 +90,14 @@ browser.runtime.onMessage.addListener(handleMessage);
 
 // Listen for blocked requests and send them to the content script
 browser.experiments.webcompatDebugger.blockedRequestObserver.addListener(async ({ url, tabId, trackerType }) => {
-  browser.runtime.sendMessage({
-    msg: "blocked-request",
-    tracker: url,
-    tabId,
-    trackerType: typeToName[trackerType]
-  });
-})
+  try {
+    await browser.runtime.sendMessage({
+      msg: "blocked-request",
+      tracker: url,
+      tabId,
+      trackerType: typeToName[trackerType]
+    });
+  } catch (e) {
+    console.warn("Failed to send blocked-request message (tab may be closed):", e);
+  }
+});
