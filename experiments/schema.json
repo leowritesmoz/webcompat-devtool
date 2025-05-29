@@ -15,9 +15,9 @@
         ]
       },
       {
-        "name": "updateTrackingSkipURLs",
+        "name": "updateUnblockedChannels",
         "type": "function",
-        "description": "Adds a URL to the tracking skip URLs list.",
+        "description": "Add or remove a url to block/unblock future channels",
         "async": true,
         "parameters": [
           {
@@ -30,6 +30,10 @@
           {
             "name": "blocked",
             "type": "boolean"
+          },
+          {
+            "name": "tabId",
+            "type": "integer"
           }
         ]
       },
@@ -38,13 +42,23 @@
         "type": "function",
         "description": "Returns the unblocked trackers for the current tab.",
         "async": true,
-        "parameters": []
+        "parameters": [
+          {
+            "name": "tabId",
+            "type": "integer"
+          }
+        ]
       },
       {
         "name": "clearUnblockList",
         "type": "function",
         "description": "Clear list of  unblocked resources.",
-        "parameters": []
+        "parameters": [
+          {
+            "name": "tabId",
+            "type": "integer"
+          }
+        ]
       }
     ],
     "events": [

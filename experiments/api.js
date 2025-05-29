@@ -9,23 +9,26 @@ this.webcompatDebugger = class extends ExtensionAPI {
     return {
       experiments: {
         webcompatDebugger: {
-          async getUnblockedTrackers() {
-            return context.unblockedChannels ? Array.from(context.unblockedChannels) : [];
+          async getUnblockedTrackers(tabId) {
+            return context.unblockedChannels && context.unblockedChannels[tabId] ? Array.from(context.unblockedChannels[tabId]) : [];
           },
-          async updateTrackingSkipURLs(hostnames, blocked) {
-            if (!context.unblockedTrackers) {
-              context.unblockedChannels = new Set();
+          async updateUnblockedChannels(hostnames, blocked, tabId) {
+            if (!context.unblockedChannels) {
+              context.unblockedChannels = {}
+            }
+            if (!context.unblockedChannels[tabId]) {
+              context.unblockedChannels[tabId] = new Set();
             }
             hostnames.forEach(hostname => {
               if (blocked) {
-                context.unblockedChannels.delete(hostname)
+                context.unblockedChannels[tabId].delete(hostname)
               } else {
-                context.unblockedChannels.add(hostname)
+                context.unblockedChannels[tabId].add(hostname)
               }
             })
           },
-          async clearUnblockList() {
-            context.unblockedChannels = new Set()
+          async clearUnblockList(tabId) {
+            context.unblockedChannels[tabId] = new Set()
           },
           blockedRequestObserver: new ExtensionCommon.EventManager({
             context,
@@ -36,36 +39,35 @@ this.webcompatDebugger = class extends ExtensionAPI {
               ].getService(Ci.nsIChannelClassifierService);
               const observer = {
                 observe: (subject) => {
-                  const channel = subject.QueryInterface(Ci.nsIUrlClassifierBlockedChannel)
-                  if (context.unblockedChannels?.has(channel.url)) {
-                    channel.allow()
+                  const windows = Services.wm.getEnumerator("navigator:browser");
+                  let targetTab;
+                  if (!subject || !subject.browserId) {
+                    console.error("No subject or browserId");
+                    return;
                   }
-
-                const windows = Services.wm.getEnumerator("navigator:browser");
-                let targetTab;
-                if (!subject || !subject.browserId) {
-                  console.error("No subject or browserId");
-                  return;
-                }
-                while (windows.hasMoreElements() && !targetTab) {
-                  const win = windows.getNext();
-                  if (!win.gBrowser) {
-                    continue;
-                  }
-                  for (const tab of win.gBrowser.tabs) {
-                    const { browserId } = win.gBrowser.getBrowserForTab(tab);
-                    if (browserId === subject.browserId) {
-                      targetTab = tab;
-                      break;
+                  while (windows.hasMoreElements() && !targetTab) {
+                    const win = windows.getNext();
+                    if (!win.gBrowser) {
+                      continue;
+                    }
+                    for (const tab of win.gBrowser.tabs) {
+                      const { browserId } = win.gBrowser.getBrowserForTab(tab);
+                      if (browserId === subject.browserId) {
+                        targetTab = tab;
+                        break;
+                      }
                     }
                   }
-                }
-                if (!targetTab) {
-                  console.error("Unable to find tab");
-                  return;
-                }
+                  if (!targetTab) {
+                    console.error("Unable to find tab");
+                    return;
+                  }
                   const { tabManager } = this.extension
-                  const tabId = tabManager.convert(targetTab).id; 
+                  const tabId = tabManager.convert(targetTab).id;
+                  const channel = subject.QueryInterface(Ci.nsIUrlClassifierBlockedChannel)
+                  if (context.unblockedChannels && context.unblockedChannels[tabId]?.has(channel.url)) {
+                    channel.allow()
+                  }
                   fire.sync({
                     tabId,
                     url: subject.url,

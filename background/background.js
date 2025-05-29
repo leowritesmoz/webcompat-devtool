@@ -19,7 +19,7 @@ const typeToName = {
 }
 
 async function sendUnblockedTrackersUpdate(tabId) {
-  const unblockedTrackers = await browser.experiments.webcompatDebugger.getUnblockedTrackers();
+  const unblockedTrackers = await browser.experiments.webcompatDebugger.getUnblockedTrackers(tabId);
   browser.runtime.sendMessage({
     msg: "unblocked-trackers",
     unblockedTrackers,
@@ -36,9 +36,10 @@ async function handleMessage(request) {
     case "toggle-tracker": {
       const { tracker, blocked, tabId } = request;
 
-      await browser.experiments.webcompatDebugger.updateTrackingSkipURLs(
+      await browser.experiments.webcompatDebugger.updateUnblockedChannels(
         [tracker],
         blocked,
+        tabId
       );
       await sendUnblockedTrackersUpdate(tabId);
       browser.tabs.reload(tabId, { bypassCache: true })
@@ -47,9 +48,10 @@ async function handleMessage(request) {
     case "update-multiple-trackers": {
       const { trackers, blocked, tabId } = request;
 
-      await browser.experiments.webcompatDebugger.updateTrackingSkipURLs(
+      await browser.experiments.webcompatDebugger.updateUnblockedChannels(
         Array.from(trackers),
         blocked,
+        tabId
       );
       await sendUnblockedTrackersUpdate(tabId);
       browser.tabs.reload(tabId, { bypassCache: true });
@@ -58,7 +60,7 @@ async function handleMessage(request) {
     case "reset": {
       const { tabId } = request;
 
-      await browser.experiments.webcompatDebugger.clearUnblockList();
+      await browser.experiments.webcompatDebugger.clearUnblockList(tabId);
       await sendUnblockedTrackersUpdate(tabId);
       browser.tabs.reload(tabId, { bypassCache: true });
       return;
