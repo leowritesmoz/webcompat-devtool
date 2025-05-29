@@ -176,12 +176,11 @@ class WebcompatDebugger {
     const button = document.createElement("button");
     button.textContent = isBlocked ? "Unblock" : "Block";
     button.addEventListener("click", () => {
-      this.sendMessage("toggle-tracker", {
-        tracker,
+      this.sendMessage("update-multiple-trackers", {
+        trackers: [tracker],
         blocked: !isBlocked,
         tabId: this.tabId
       });
-      // Optimistically update UI
       if (isBlocked) {
         this.unblockedTrackers.add(tracker);
       } else {
@@ -255,118 +254,167 @@ class WebcompatDebugger {
   };
 }
 
+/**
+ * FSM context for interactive debugging of tracker blocking.
+ */
 class DebuggerFSMContext {
-  // States:
-  // Initialization:
-  //  1. unblock all trackers
-  // Group stage
-  //  1. group by top level domain
-  //  2. put groups into a stack
-  //  3. pop the stack, and block all of the trackers in the group
-  //  4. ask user if website is broken
-  //    - broken -> add each tracker in the group to the individualTracker array
-  //  5. when the stack is empty, continue to Individual stage
-  // Individual stage
-  //  1. pop the stack and block the tracker 
-  //  2. ask user if website is broken
-  //    - broken -> add tracker to an "unblock" array, then unblock the tracker
-  //  3. when the stack is empty, return the "unblock" array
+  /**
+   * @param {string[]} allTrackers - List of all tracker hostnames.
+   */
   constructor(allTrackers) {
-    this.allTrackers = allTrackers
-    console.log(allTrackers)
-    this.state = new GroupStageState(this);
-    this.individualStageTrackers = []
-    this.necessaryTrackers = []
-    // TODO: continously unblock all cookies until nothing more loads
+    this.allTrackers = Array.isArray(allTrackers) ? allTrackers : [];
+    this.state = new DomainStageState(this);
+    this.subdomainStageTrackers = new Set();
+    this.necessaryTrackers = new Set();
+    this.tabId = browser.devtools.inspectedWindow.tabId;
   }
+
+  /**
+   * Transition to a new FSM state.
+   * @param {object} state - The new state instance.
+   */
   changeState(state) {
-    this.state = state
-  }
-
-  onTestNextTracker = () => {
-    this.state.onTestNextTracker()
-  }
-
-  onWebsiteBroke = () => {
-    this.state.onWebsiteBroke()
-  }
-
-  updatePromptText = (text) => {
-    const el = document.getElementById("interactive-debugger-prompt")
-    el.textContent = text
-  }
-}
-
-class GroupStageState {
-  constructor(debuggerFSMContext) {
-    this.debuggerFSMContext = debuggerFSMContext
-    const domainGroupsMap = {}
-    this.debuggerFSMContext.allTrackers.forEach(tracker => {
-      const domain = new URL(tracker).hostname.split('.').slice(-2).join('.');
-      domainGroupsMap[domain] = domainGroupsMap[domain] || []
-      domainGroupsMap[domain].push(tracker)
-    })
-    this.domainGroups = Object.entries(domainGroupsMap).map(([domain, hostnames]) => [domain, hostnames])
-    this.lastGroupTrackers = []
-    this.debuggerFSMContext.updatePromptText(`Please click on "Continue" to start debugging`)
-  }
-
-  onTestNextTracker = () => {
-    this.lastGroupTrackers = this.domainGroups.pop()
-    if (!this.lastGroupTrackers) {
-      this.debuggerFSMContext.changeState(new IndiivdualStageState(this.debuggerFSMContext))
-      return;
+    this.state = state;
+    if (state && state.constructor && state.constructor.name) {
+      console.log(`FSM transitioned to: ${state.constructor.name}`);
     }
-    browser.runtime.sendMessage({
-      msg: "update-multiple-trackers",
-      blocked: true,
-      trackers: this.lastGroupTrackers[1],
-      tabId: this.tabId
-    });
-    this.debuggerFSMContext.updatePromptText(`Please click on "Website Broke" if the website is broken, or "Continue" to test the next tracker `)
   }
 
-  onWebsiteBroke = () => {
-    this.debuggerFSMContext.individualStageTrackers.push(...this.lastGroupTrackers[1])
-    // unblock the group to make sure the page works again
-    browser.runtime.sendMessage({
-      msg: "update-multiple-trackers",
-      blocked: false,
-      trackers: this.lastGroupTrackers[1],
-      tabId: this.tabId
-    })
-    this.debuggerFSMContext.updatePromptText(`Group ${this.lastGroupTrackers[0]} will be tested later`)
-  }
-}
-
-class IndiivdualStageState {
-  constructor(debuggerFSMContext) {
-    this.debuggerFSMContext = debuggerFSMContext
-  }
+  /**
+   * Called when user clicks "Continue".
+   */
   onTestNextTracker = () => {
-    this.lastTracker = this.debuggerFSMContext.individualStageTrackers.pop()
-    if (!this.lastTracker) {
-      this.debuggerFSMContext.updatePromptText(`Debugging finished, please add ${this.debuggerFSMContext.necessaryTrackers} to
-      the exceptions list`)
-      return;
+    this.state.onTestNextTracker();
+  }
+
+  /**
+   * Called when user clicks "Website Broke".
+   */
+  onWebsiteBroke = () => {
+    this.state.onWebsiteBroke();
+  }
+
+  /**
+   * Update the prompt text in the UI.
+   * @param {number} count - Number of items left.
+   * @param {string} text - Prompt message.
+   */
+  updatePromptText = (count, text) => {
+    const el = document.getElementById("interactive-debugger-prompt");
+    if (el) {
+      el.textContent = `[${count} left] ${text}`;
     }
+  }
+
+  /**
+   * Helper to send a message to the background script.
+   */
+  sendTrackersUpdate = (blocked, trackers) => {
     browser.runtime.sendMessage({
       msg: "update-multiple-trackers",
-      blocked: true,
-      trackers: this.lastTracker,
+      blocked,
+      trackers: Array.from(trackers),
       tabId: this.tabId
     });
   }
+}
+
+/**
+ * Group stage: block/unblock by top-level domain groupings.
+ */
+class DomainStageState {
+  constructor(debuggerFSMContext) {
+    this.debuggerFSMContext = debuggerFSMContext;
+    this.domainGroups = this.groupByDomain(debuggerFSMContext.allTrackers);
+    this.lastGroup = null;
+    this.debuggerFSMContext.updatePromptText(
+      this.domainGroups.length,
+      "Click 'Continue' to start group debugging."
+    );
+  }
+
+  /**
+   * Group trackers by their top-level domain.
+   */
+  groupByDomain(trackers) {
+    const domainGroupsMap = {};
+    trackers.forEach(tracker => {
+      const domain = tracker.split('.').slice(-2).join('.');
+      if (!domainGroupsMap[domain]) domainGroupsMap[domain] = new Set();
+      domainGroupsMap[domain].add(tracker);
+    });
+    return Object.entries(domainGroupsMap).map(([domain, hosts]) => ({ domain, hosts: Array.from(hosts) }));
+  }
+
+  onTestNextTracker = () => {
+    this.lastGroup = this.domainGroups.shift();
+    const count = this.domainGroups.length;
+    if (!this.lastGroup) {
+      this.debuggerFSMContext.updatePromptText(
+        count,
+        "Group debugging finished. Starting individual tracker stage. Click 'Continue' to proceed."
+      );
+      this.debuggerFSMContext.changeState(new SubdomainStageState(this.debuggerFSMContext));
+      return;
+    }
+    this.debuggerFSMContext.sendTrackersUpdate(true, this.lastGroup.hosts);
+    this.debuggerFSMContext.updatePromptText(
+      count,
+      `Blocked group '${this.lastGroup.domain}'. If the website is broken, click 'Website Broke', otherwise 'Continue'.`
+    );
+  }
 
   onWebsiteBroke = () => {
-    this.debuggerFSMContext.necessaryTrackers.push(...this.lastTracker)
-    browser.runtime.sendMessage({
-      msg: "update-multiple-trackers",
-      blocked: false,
-      trackers: this.lastTracker,
-      tabId: this.tabId
-    })
-    this.debuggerFSMContext.updatePromptText(`Added ${this.lastTracker} to necessary trackers`)
+    if (this.lastGroup && this.lastGroup.hosts) {
+      this.lastGroup.hosts.forEach(tracker => this.debuggerFSMContext.subdomainStageTrackers.add(tracker));
+      // Unblock the group to restore site
+      this.debuggerFSMContext.sendTrackersUpdate(false, this.lastGroup.hosts);
+      const count = this.domainGroups.length;
+      this.debuggerFSMContext.updatePromptText(
+        count,
+        `Group '${this.lastGroup.domain}' will be tested individually later. Click 'Continue' to test the next group.`
+      );
+    }
+  }
+}
+
+/**
+ * Individual stage: block/unblock each tracker separately.
+ */
+class SubdomainStageState {
+  constructor(debuggerFSMContext) {
+    this.debuggerFSMContext = debuggerFSMContext;
+    this.subdomains = Array.from(debuggerFSMContext.subdomainStageTrackers);
+    this.lastSubdomain = null;
+  }
+
+  onTestNextTracker = () => {
+    this.lastSubdomain = this.subdomains.shift();
+    const count = this.subdomains.length;
+    if (!this.lastSubdomain) {
+      this.debuggerFSMContext.updatePromptText(
+        count,
+        `Debugging finished. Please add the following to the exceptions list: ${Array.from(this.debuggerFSMContext.necessaryTrackers).join(', ')}`
+      );
+      return;
+    }
+    this.debuggerFSMContext.sendTrackersUpdate(true, [this.lastSubdomain]);
+    this.debuggerFSMContext.updatePromptText(
+      count,
+      `Blocked '${this.lastSubdomain}'. If the website is broken, click 'Website Broke', otherwise 'Continue'.`
+    );
+  }
+
+  onWebsiteBroke = () => {
+    if (this.lastSubdomain) {
+      this.debuggerFSMContext.necessaryTrackers.add(this.lastSubdomain);
+      this.debuggerFSMContext.sendTrackersUpdate(false, [this.lastSubdomain]);
+      const count = this.subdomains.length;
+      this.debuggerFSMContext.updatePromptText(
+        count,
+        `Added '${this.lastSubdomain}' to necessary trackers. Click 'Continue' to test the next tracker.`
+      );
+    }
   }
 }
 

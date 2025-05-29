@@ -61,12 +61,13 @@ this.webcompatDebugger = class extends ExtensionAPI {
                   }
                   const tabId = tabManager.convert(targetTab).id;
                   const channel = subject.QueryInterface(Ci.nsIUrlClassifierBlockedChannel)
-                  if (context.unblockedChannels?.[tabId]?.has(channel.url)) {
+                  const hostname = Services.io.newURI(channel.url).host;
+                  if (context.unblockedChannels?.[tabId]?.has(hostname)) {
                     channel.allow()
                   }
                   fire.sync({
                     tabId,
-                    url: subject.url,
+                    url: hostname,
                     trackerType: subject.reason,
                   });
                 },

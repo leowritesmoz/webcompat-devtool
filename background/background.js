@@ -37,22 +37,6 @@ async function handleMessage(request) {
       await sendUnblockedTrackersUpdate(request.tabId);
       return;
     }
-    case "toggle-tracker": {
-      const { tracker, blocked, tabId } = request;
-
-      await browser.experiments.webcompatDebugger.updateUnblockedChannels(
-        [tracker],
-        blocked,
-        tabId
-      );
-      await sendUnblockedTrackersUpdate(tabId);
-      try {
-        await browser.tabs.reload(tabId, { bypassCache: true });
-      } catch (e) {
-        console.warn("Failed to reload tab (may be closed):", e);
-      }
-      return;
-    }
     case "update-multiple-trackers": {
       const { trackers, blocked, tabId } = request;
 
