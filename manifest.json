@@ -4,10 +4,6 @@
   "version": "1.0",
 
   "description": "Allows cookies to be easily blocked and unblocked",
-
-  "icons": {
-    "48": "icons/border-48.png"
-  },
   "browser_specific_settings": {
     "gecko": {
       "id": "leliu@mozilla.com"

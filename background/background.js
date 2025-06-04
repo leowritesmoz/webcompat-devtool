@@ -70,18 +70,26 @@ async function handleMessage(request) {
   }
 }
 
-browser.runtime.onMessage.addListener(handleMessage);
+// Export an initBackground function for testability
+function initBackground() {
+  browser.runtime.onMessage.addListener(handleMessage);
+  browser.experiments.webcompatDebugger.blockedRequestObserver.addListener(async ({ url, tabId, trackerType }) => {
+    try {
+      await browser.runtime.sendMessage({
+        msg: "blocked-request",
+        tracker: url,
+        tabId,
+        trackerType: typeToName[trackerType]
+      });
+    } catch (e) {
+      console.warn("Failed to send blocked-request message (tab may be closed):", e);
+    }
+  });
+}
 
-// Listen for blocked requests and send them to the content script
-browser.experiments.webcompatDebugger.blockedRequestObserver.addListener(async ({ url, tabId, trackerType }) => {
-  try {
-    await browser.runtime.sendMessage({
-      msg: "blocked-request",
-      tracker: url,
-      tabId,
-      trackerType: typeToName[trackerType]
-    });
-  } catch (e) {
-    console.warn("Failed to send blocked-request message (tab may be closed):", e);
-  }
-});
+module.exports = { handleMessage, initBackground };
+
+// Initialize background listeners if running as a real extension (not in test)
+if (typeof process === 'undefined' || process.env.NODE_ENV !== 'test') {
+  module.exports.initBackground();
+}

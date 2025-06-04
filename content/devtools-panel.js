@@ -466,4 +466,12 @@ class CompletedState {
   }
 }
 
+// Export FSM classes for testing
+module.exports = {
+  DebuggerFSMContext,
+  DomainStageState,
+  SubdomainStageState,
+  CompletedState
+};
+
 new WebcompatDebugger();
