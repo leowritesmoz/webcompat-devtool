@@ -87,9 +87,17 @@ function initBackground() {
   });
 }
 
-module.exports = { handleMessage, initBackground };
+// Only export for Node.js (test) environments
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    DebuggerFSMContext,
+    DomainStageState,
+    SubdomainStageState,
+    CompletedState
+  };
+}
 
 // Initialize background listeners if running as a real extension (not in test)
 if (typeof process === 'undefined' || process.env.NODE_ENV !== 'test') {
-  module.exports.initBackground();
+  initBackground();
 }

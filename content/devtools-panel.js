@@ -324,6 +324,8 @@ class DebuggerFSMContext {
 
   /**
    * Helper to send a message to the background script.
+   * @param {boolean} blocked - If the trackers should be blocked.
+   * @param {Array} trackers - An iterable of trackers.
    */
   sendTrackersUpdate = (blocked, trackers) => {
     sendMessage("update-multiple-trackers", {
@@ -366,6 +368,7 @@ class DomainStageState {
 
   /**
    * Group trackers by their top-level domain.
+   * @param {string[]} trackers - List of tracker hostnames.
    */
   groupByDomain(trackers) {
     const domainGroupsMap = {};
@@ -377,6 +380,9 @@ class DomainStageState {
     return Object.entries(domainGroupsMap).map(([domain, hosts]) => ({ domain, hosts: Array.from(hosts) }));
   }
 
+  /**
+   * Handle the "Continue" button click to test the next domain group.
+   */
   onTestNextTracker = () => {
     this.lastGroup = this.domainGroups.shift();
     const count = this.domainGroups.length;
@@ -397,6 +403,9 @@ class DomainStageState {
     );
   }
 
+  /**
+   * Handle the "Website Broke" button click to unblock the last group.
+   */
   onWebsiteBroke = () => {
     if (this.lastGroup && this.lastGroup.hosts) {
       this.lastGroup.hosts.forEach(tracker => this.debuggerFSMContext.subdomainStageTrackers.add(tracker));
@@ -422,7 +431,6 @@ class SubdomainStageState {
     this.subdomains = Array.from(debuggerFSMContext.subdomainStageTrackers);
     this.lastSubdomain = null;
   }
-
 
   onTestNextTracker = () => {
     this.lastSubdomain = this.subdomains.shift();
@@ -466,12 +474,14 @@ class CompletedState {
   }
 }
 
-// Export FSM classes for testing
-module.exports = {
-  DebuggerFSMContext,
-  DomainStageState,
-  SubdomainStageState,
-  CompletedState
-};
+// Only export for Node.js (test) environments
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    DebuggerFSMContext,
+    DomainStageState,
+    SubdomainStageState,
+    CompletedState
+  };
+}
 
 new WebcompatDebugger();
